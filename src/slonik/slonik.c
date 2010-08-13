@@ -1474,8 +1474,18 @@ script_exec_stmts(SlonikScript * script, SlonikStmt * hdr)
 					SlonikStmt_wait_event *stmt =
 					(SlonikStmt_wait_event *) hdr;
 
-					if (slonik_wait_event(stmt) < 0)
+					if (current_try_level != 0)
+					{
+						printf("%s:%d: ERROR: WAIT FOR EVENT command "
+							   "used inside of TRY block\n",
+							   stmt->hdr.stmt_filename, stmt->hdr.stmt_lno);
 						errors++;
+					}
+					else
+					{
+						if (slonik_wait_event(stmt) < 0)
+							errors++;
+					}
 				}
 				break;
 
