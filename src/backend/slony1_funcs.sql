@@ -429,7 +429,7 @@ create or replace function @NAMESPACE@.slonyVersionMinor()
 returns int4
 as $$
 begin
-	return 1;
+	return 2;
 end;
 $$ language plpgsql;
 comment on function @NAMESPACE@.slonyVersionMinor () is 
@@ -5986,11 +5986,13 @@ begin
 end;
 $$ language plpgsql;
 
+drop trigger if exists apply_trigger on @NAMESPACE@.sl_log_1;
 create trigger apply_trigger
 	before INSERT on @NAMESPACE@.sl_log_1
 	for each row execute procedure @NAMESPACE@.log_apply();
 alter table @NAMESPACE@.sl_log_1
 	enable replica trigger apply_trigger;
+drop trigger if exists apply_trigger on @NAMESPACE@.sl_log_2;
 create trigger apply_trigger
 	before INSERT on @NAMESPACE@.sl_log_2
 	for each row execute procedure @NAMESPACE@.log_apply();

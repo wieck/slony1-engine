@@ -4,9 +4,6 @@
 *** Significant New Features
     - Switch to use COPY protocol for handling sl_log_* data
 
-*** Upgrade Procedures
-**** Draining log tables
-
      Since the schema of tables ~sl_log_1~ and ~sl_log_2~ are changing
      substantially, capturing somewhat different information, there is
      no way provided to convert old log data to use the new schema.
