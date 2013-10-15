@@ -60,6 +60,8 @@ int			current_try_level;
 int			block_stmt_no = 0;
 int			last_event_node = -1;
 int			auto_wait_disabled = 0;
+char	   *current_filename = "<none>";
+int			current_lno = 0;
 
 static char share_path[MAXPGPATH];
 #if HAVE_PGPORT
@@ -209,6 +211,8 @@ main(int argc, const char *argv[])
 	if (parser_errors)
 		usage();
 
+	setlinebuf(stdout);
+
 #ifdef HAVE_PGPORT
 	/*
 	 * We need to find a share directory like PostgreSQL.
@@ -279,6 +283,22 @@ usage(void)
 {
 	fprintf(stderr, "usage: slonik [fname [...]]\n");
 	exit(1);
+}
+
+
+/* ----------
+ * slonik_printf -
+ * ----------
+ */
+void
+slonik_printf(char *fmt, ...)
+{
+	va_list		ap;
+
+	printf("%s:%d: ", current_filename, current_lno);
+	va_start(ap, fmt);
+	vprintf(fmt, ap);
+	va_end(ap);
 }
 
 
@@ -354,6 +374,9 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 	{
 		hdr->script = script;
 
+		current_filename = hdr->stmt_filename;
+		current_lno = hdr->stmt_lno;
+
 		switch (hdr->stmt_type)
 		{
 			case STMT_TRY:
@@ -383,8 +406,9 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 
 					if ((stmt->exitcode < 0) || (stmt->exitcode > 255))
 					{
-						printf("%s:%d: Error: exitcode was %d - must be in range [0-255]\n",
-						  hdr->stmt_filename, hdr->stmt_lno, stmt->exitcode);
+						slonik_printf("Error: "
+								"exitcode was %d - must be in range [0-255]\n",
+								stmt->exitcode);
 						errors++;
 					}
 				}
@@ -422,21 +446,17 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 
 					if (stmt->no_origin < 0)
 					{
-						printf("%s:%d: Error: require ORIGIN node\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: require ORIGIN node\n");
 						errors++;
 					}
 					if (stmt->no_provider < 0)
 					{
-
-						printf("%s:%d: Error: require PROVIDER node\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: require PROVIDER node\n");
 						errors++;
 					}
 					if (stmt->no_receiver < 0)
 					{
-						printf("%s:%d: Error: require RECEIVER node\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: require RECEIVER node\n");
 						errors++;
 					}
 				}
@@ -464,16 +484,15 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 
 					if (stmt->ev_origin < 0)
 					{
-						printf("%s:%d: Error: require EVENT NODE\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: require EVENT NODE\n");
 						errors++;
 					}
 					if (stmt->no_id == stmt->ev_origin)
 					{
-						printf("%s:%d: Error: "
+						slonik_printf("Error: "
 							   "ev_origin for store_node cannot "
-							   "be the new node\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+							   "be the new node\n");
+						errors++;
 					}
 
 					if (script_check_adminfo(hdr, stmt->ev_origin) < 0)
@@ -489,15 +508,13 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 
 					if (stmt->ev_origin < 0)
 					{
-						printf("%s:%d: Error: require EVENT NODE\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: require EVENT NODE\n");
 						errors++;
 					}
 					if (stmt->no_id_list == NULL ||
 						stmt->no_id_list[0] == -1)
 					{
-						printf("%s:%d: Error: A node id must be provided",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: A node id must be provided");
 						errors++;
 					}
 					else
@@ -508,9 +525,9 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 						{
 							if (stmt->no_id_list[cnt] == stmt->ev_origin)
 							{
-								printf("%s:%d: Error: "
-									   "Node ID (%d) and event node cannot be identical\n",
-									   hdr->stmt_filename, hdr->stmt_lno,
+								slonik_printf("Error: "
+									   "Node ID (%d) and event node "
+									   "cannot be identical\n",
 									   stmt->no_id_list[cnt]);
 								errors++;
 							}
@@ -530,8 +547,8 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 
 					if (stmt->nodes == NULL)
 					{
-						printf("%s:%d: Error: require at least one failed node\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+								"require at least one failed node\n");
 						errors++;
 					}
 					for (node = stmt->nodes; node != NULL;
@@ -539,15 +556,14 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 					{
 						if (node->backup_node < 0)
 						{
-							printf("%s:%d: Error: require BACKUP NODE\n",
-								   hdr->stmt_filename, hdr->stmt_lno);
+							slonik_printf("Error: require BACKUP NODE\n");
 							errors++;
 						}
 						if (node->backup_node == node->no_id)
 						{
-							printf("%s:%d: Error: "
-							 "Node ID and backup node cannot be identical\n",
-								   hdr->stmt_filename, hdr->stmt_lno);
+							slonik_printf("Error: "
+									"Node ID and backup node cannot "
+									"be identical\n");
 							errors++;
 						}
 						if (script_check_adminfo(hdr, node->backup_node) < 0)
@@ -577,9 +593,8 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 
 					if (stmt->no_id < 0)
 					{
-						printf("%s:%d: Error: "
-							   "new node ID must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+							   "new node ID must be specified\n");
 						errors++;
 					}
 
@@ -619,17 +634,15 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 
 					if (stmt->pa_server < 0)
 					{
-						printf("%s:%d: Error: "
-							   "server must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+							   "server must be specified\n");
 						errors++;
 					}
 
 					if (stmt->pa_client < 0)
 					{
-						printf("%s:%d: Error: "
-							   "client must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+							   "client must be specified\n");
 						errors++;
 					}
 
@@ -673,9 +686,8 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 
 					if (stmt->set_id < 0)
 					{
-						printf("%s:%d: Error: "
-							   "set id must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+							   "set id must be specified\n");
 						errors++;
 					}
 					if (script_check_adminfo(hdr, stmt->set_origin) < 0)
@@ -690,9 +702,8 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 
 					if (stmt->set_id < 0)
 					{
-						printf("%s:%d: Error: "
-							   "set id must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+							   "set id must be specified\n");
 						errors++;
 					}
 
@@ -708,17 +719,15 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 
 					if (stmt->set_id < 0)
 					{
-						printf("%s:%d: Error: "
-							   "set id must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+							   "set id must be specified\n");
 						errors++;
 					}
 
 					if (stmt->add_id < 0)
 					{
-						printf("%s:%d: Error: "
-							   "set id to merge (add) must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+							   "set id to merge (add) must be specified\n");
 						errors++;
 					}
 
@@ -738,9 +747,8 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 					 */
 					if (stmt->set_id < 0)
 					{
-						printf("%s:%d: Error: "
-							   "set id must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+							   "set id must be specified\n");
 						errors++;
 					}
 					if (stmt->set_origin > 0)
@@ -752,28 +760,26 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 					if (stmt->tab_fqname == NULL &&
 						stmt->tables == NULL)
 					{
-						printf("%s:%d: Error: "
-							   "'fully qualfied name' or 'tables' must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+							   "'fully qualfied name' or 'tables' "
+							   "must be specified\n");
 						errors++;
 					}
 					if (stmt->tab_fqname != NULL &&
 						stmt->tables != NULL)
 					{
-						printf("%s:%d: Error: "
-						   "'fully qualified name' and 'tables' can not both"
-							   " be specified", hdr->stmt_filename,
-							   hdr->stmt_lno);
+						slonik_printf("Error: "
+								"'fully qualified name' and 'tables' can "
+								"not both be specified");
 						errors++;
 					}
 					if (stmt->tables != NULL &&
 						stmt->use_key != NULL)
 					{
 
-						printf("%s:%d: ERROR: "
+						slonik_printf("ERROR: "
 							   "'key' can not be used with the 'tables' "
-							   "option.", hdr->stmt_filename,
-							   hdr->stmt_lno);
+							   "option.");
 						errors++;
 					}
 
@@ -795,9 +801,8 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 					 */
 					if (stmt->set_id < 0)
 					{
-						printf("%s:%d: Error: "
-							   "set id must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+							   "set id must be specified\n");
 						errors++;
 					}
 					if (stmt->set_origin >= 0)
@@ -809,18 +814,17 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 					if (stmt->seq_fqname == NULL &&
 						stmt->sequences == NULL)
 					{
-						printf("%s:%d: Error: "
-						 "sequence FQ-name or sequences must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+								"sequence FQ-name or sequences must "
+								"be specified\n");
 						errors++;
 					}
 					if (stmt->seq_fqname != NULL &&
 						stmt->sequences != NULL)
 					{
-						printf("%s:%d: Error: "
-						"'fully qualified name' and 'sequences' can not both"
-							   " be specified", hdr->stmt_filename,
-							   hdr->stmt_lno);
+						slonik_printf("Error: "
+								"'fully qualified name' and 'sequences' can "
+							   "not both be specified");
 						errors++;
 					}
 
@@ -843,9 +847,8 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 					 */
 					if (stmt->set_origin < 0)
 					{
-						printf("%s:%d: Error: "
-							   "origin must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+								"origin must be specified\n");
 						errors++;
 					}
 					else
@@ -860,9 +863,8 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 					 */
 					if (stmt->tab_id < 0)
 					{
-						printf("%s:%d: Error: "
-							   "table id must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+							   "table id must be specified\n");
 						errors++;
 					}
 				}
@@ -879,9 +881,8 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 					 */
 					if (stmt->set_origin < 0)
 					{
-						printf("%s:%d: Error: "
-							   "origin must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+							   "origin must be specified\n");
 						errors++;
 					}
 					else
@@ -896,9 +897,8 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 					 */
 					if (stmt->seq_id < 0)
 					{
-						printf("%s:%d: Error: "
-							   "sequence id must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+							   "sequence id must be specified\n");
 						errors++;
 					}
 				}
@@ -915,9 +915,8 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 					 */
 					if (stmt->set_origin < 0)
 					{
-						printf("%s:%d: Error: "
-							   "origin must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+							   "origin must be specified\n");
 						errors++;
 					}
 					else
@@ -931,16 +930,14 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 					 */
 					if (stmt->tab_id < 0)
 					{
-						printf("%s:%d: Error: "
-							   "table id must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+							   "table id must be specified\n");
 						errors++;
 					}
 					if (stmt->new_set_id < 0)
 					{
-						printf("%s:%d: Error: "
-							   "new set id must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+							   "new set id must be specified\n");
 						errors++;
 					}
 				}
@@ -957,9 +954,8 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 					 */
 					if (stmt->set_origin < 0)
 					{
-						printf("%s:%d: Error: "
-							   "origin must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+							   "origin must be specified\n");
 						errors++;
 					}
 					else
@@ -973,16 +969,14 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 					 */
 					if (stmt->seq_id < 0)
 					{
-						printf("%s:%d: Error: "
-							   "sequence id must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+							   "sequence id must be specified\n");
 						errors++;
 					}
 					if (stmt->new_set_id < 0)
 					{
-						printf("%s:%d: Error: "
-							   "new set id must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+							   "new set id must be specified\n");
 						errors++;
 					}
 				}
@@ -996,16 +990,14 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 
 					if (stmt->sub_setid < 0)
 					{
-						printf("%s:%d: Error: "
-							   "set id must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+							   "set id must be specified\n");
 						errors++;
 					}
 					if (stmt->sub_provider < 0)
 					{
-						printf("%s:%d: Error: "
-							   "provider must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+							   "provider must be specified\n");
 						errors++;
 					}
 
@@ -1021,9 +1013,8 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 
 					if (stmt->sub_setid < 0)
 					{
-						printf("%s:%d: Error: "
-							   "set id must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+							   "set id must be specified\n");
 						errors++;
 					}
 
@@ -1038,16 +1029,14 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 
 					if (stmt->set_id < 0)
 					{
-						printf("%s:%d: Error: "
-							   "set id must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+							   "set id must be specified\n");
 						errors++;
 					}
 					if (stmt->set_origin < 0)
 					{
-						printf("%s:%d: Error: "
-							   "origin must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+							   "origin must be specified\n");
 						errors++;
 					}
 					else if (script_check_adminfo(hdr, stmt->set_origin) < 0)
@@ -1062,16 +1051,14 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 
 					if (stmt->set_id < 0)
 					{
-						printf("%s:%d: Error: "
-							   "set id must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+							   "set id must be specified\n");
 						errors++;
 					}
 					if (stmt->set_origin < 0)
 					{
-						printf("%s:%d: Error: "
-							   "origin must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+							   "origin must be specified\n");
 						errors++;
 					}
 
@@ -1087,30 +1074,26 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 
 					if (stmt->set_id < 0)
 					{
-						printf("%s:%d: Error: "
-							   "set id must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+							   "set id must be specified\n");
 						errors++;
 					}
 					if (stmt->old_origin < 0)
 					{
-						printf("%s:%d: Error: "
-							   "old origin must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+							   "old origin must be specified\n");
 						errors++;
 					}
 					if (stmt->new_origin < 0)
 					{
-						printf("%s:%d: Error: "
-							   "new origin must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+							   "new origin must be specified\n");
 						errors++;
 					}
 					if (stmt->new_origin == stmt->old_origin)
 					{
-						printf("%s:%d: Error: "
-							   "old and new origin cannot be identical\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+							   "old and new origin cannot be identical\n");
 						errors++;
 					}
 
@@ -1126,29 +1109,27 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 
 					if (stmt->ev_origin < 0)
 					{
-						printf("%s:%d: Error: require EVENT NODE\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: require EVENT NODE\n");
 						errors++;
 					}
 					if (stmt->ddl_fname == NULL && stmt->ddl_sql == NULL)
 					{
-						printf("%s:%d: Error: "
-							   "script file name or sql must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+							   "script file name or sql must be specified\n");
 						errors++;
 					}
 					if (stmt->ddl_fname != NULL && stmt->ddl_sql != NULL)
 					{
-						printf("%s:%d: Error: "
-							   "script file name and sql are mutually exclusive\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+							   "script file name and sql are "
+							   "mutually exclusive\n");
 						errors++;
 					}
 					if ((stmt->only_on_node > 0) && (stmt->only_on_nodes != NULL))
 					{
-						printf("%s:%d: Error: "
-						"cannot specify singular node as well as node list\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+								"cannot specify singular node as well "
+								"as node list\n");
 						errors++;
 					}
 
@@ -1160,9 +1141,8 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 					stmt->ddl_fd = fopen(stmt->ddl_fname, "r");
 						if (stmt->ddl_fd == NULL)
 						{
-							printf("%s:%d: Error: "
+							slonik_printf("Error: "
 								   "%s - %s\n",
-								   hdr->stmt_filename, hdr->stmt_lno,
 								   stmt->ddl_fname, strerror(errno));
 							errors++;
 						}
@@ -1187,16 +1167,15 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 
 					if (stmt->wait_origin == -1)
 					{
-						printf("%s:%d: Error: "
-							   "event origin to wait for must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+							   "event origin to wait for must be specified\n");
 						errors++;
 					}
 					if (stmt->wait_confirmed == -1)
 					{
-						printf("%s:%d: Error: "
-						   "confirming node to wait for must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+								"confirming node to wait for must "
+								"be specified\n");
 						errors++;
 					}
 
@@ -1213,9 +1192,8 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 
 					if (stmt->no_id == -1)
 					{
-						printf("%s:%d: Error: "
-							   "node ID must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+							   "node ID must be specified\n");
 						errors++;
 					}
 
@@ -1232,9 +1210,8 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 
 					if (stmt->no_id == -1)
 					{
-						printf("%s:%d: Error: "
-							   "node ID must be specified\n",
-							   hdr->stmt_filename, hdr->stmt_lno);
+						slonik_printf("Error: "
+							   "node ID must be specified\n");
 						errors++;
 					}
 
@@ -1250,9 +1227,9 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 
 					if (stmt->num_secs < 0)
 					{
-						printf("%s:%d: Error: "
-							   " sleep time (%d) must be positive\n",
-						  hdr->stmt_filename, hdr->stmt_lno, stmt->num_secs);
+						slonik_printf("Error: "
+								"sleep time (%d) must be positive\n",
+								stmt->num_secs);
 						errors++;
 					}
 
@@ -1264,6 +1241,9 @@ script_check_stmts(SlonikScript * script, SlonikStmt * hdr)
 
 		hdr = hdr->next;
 	}
+
+	current_filename = "<none>";
+	current_lno = 0;
 
 	return -errors;
 }
@@ -1319,6 +1299,9 @@ script_exec_stmts(SlonikScript * script, SlonikStmt * hdr)
 	{
 		hdr->script = script;
 		block_stmt_no++;
+
+		current_filename = hdr->stmt_filename;
+		current_lno = hdr->stmt_lno;
 
 		switch (hdr->stmt_type)
 		{
@@ -1376,9 +1359,7 @@ script_exec_stmts(SlonikScript * script, SlonikStmt * hdr)
 					SlonikStmt_echo *stmt =
 					(SlonikStmt_echo *) hdr;
 
-					printf("%s:%d: %s\n",
-						   stmt->hdr.stmt_filename, stmt->hdr.stmt_lno,
-						   stmt->str);
+					slonik_printf("%s\n", stmt->str);
 					block_stmt_no--;
 				}
 				break;
@@ -1395,9 +1376,7 @@ script_exec_stmts(SlonikScript * script, SlonikStmt * hdr)
 					t = time(NULL);
 					local = localtime(&t);
 					strftime(outstr, sizeof(outstr), stmt->fmt, local);
-					printf("%s:%d: %s\n",
-						   stmt->hdr.stmt_filename, stmt->hdr.stmt_lno,
-						   outstr);
+					slonik_printf("%s\n", outstr);
 					block_stmt_no--;
 				}
 				break;
@@ -1422,7 +1401,7 @@ script_exec_stmts(SlonikScript * script, SlonikStmt * hdr)
 				break;
 
 			case STMT_ERROR:
-				printf("slonik_exec_stmt: FATAL error: STMT_ERROR node "
+				slonik_printf("slonik_exec_stmt: FATAL error: STMT_ERROR node "
 					   "made it into execution!\n");
 				exit(-1);
 				break;
@@ -1769,6 +1748,9 @@ script_exec_stmts(SlonikScript * script, SlonikStmt * hdr)
 
 		hdr = hdr->next;
 	}
+
+	current_filename = "<none>";
+	current_lno = 0;
 
 	return -errors;
 }
@@ -2700,7 +2682,7 @@ slonik_drop_node(SlonikStmt_drop_node * stmt)
 					else
 						adminfo2->last_event = ev_id;
 
-					printf("debug: waiting for %d," INT64_FORMAT " on %d\n",
+					slonik_printf("waiting for %d," INT64_FORMAT " on %d\n",
 						   wait_event.wait_origin, ev_id, wait_event.wait_on);
 					rc = slonik_wait_event(&wait_event);
 					if (rc < 0)
@@ -2873,7 +2855,7 @@ slonik_failed_node(SlonikStmt_failed_node * stmt)
 		adminfo1 = get_active_adminfo((SlonikStmt *) stmt, node_entry->backup_node);
 		if (adminfo1 == NULL)
 		{
-			printf("%s:%d no admin conninfo for node %d\n",
+			printf("%s:%d: no admin conninfo for node %d\n",
 				   stmt->hdr.stmt_filename, stmt->hdr.stmt_lno,
 				   node_entry->backup_node);
 			rc = -1;
@@ -2889,7 +2871,7 @@ slonik_failed_node(SlonikStmt_failed_node * stmt)
 		for(res_idx=0; res_idx < num_orphans; res_idx++)
 		{
 			char * receiver=PQgetvalue(res1,res_idx,0);
-			printf("%s:%d can't failover node %s does not have a path to %d\n",
+			printf("%s:%d: can't failover node %s does not have a path to %d\n",
 				   stmt->hdr.stmt_filename, stmt->hdr.stmt_lno,receiver,
 				   node_entry->backup_node);
 			missing_paths=true;
@@ -2920,7 +2902,7 @@ slonik_failed_node(SlonikStmt_failed_node * stmt)
 		}
 		if(PQntuples(res1)!=0) 
 		{
-			printf("%s:%d node %d is not a forwarding subscriber of set %s " \
+			printf("%s:%d: node %d is not a forwarding subscriber of set %s " \
 				   "from node %d \n",
 				   stmt->hdr.stmt_filename, stmt->hdr.stmt_lno,
 				   node_entry->backup_node,PQgetvalue(res1,0,0),
@@ -2953,7 +2935,7 @@ slonik_failed_node(SlonikStmt_failed_node * stmt)
 		adminfo1 = get_active_adminfo((SlonikStmt *) stmt, node_entry->backup_node);
 		if (adminfo1 == NULL)
 		{
-			printf("%s:%d no admin conninfo for node %d\n",
+			printf("%s:%d: no admin conninfo for node %d\n",
 				   stmt->hdr.stmt_filename, stmt->hdr.stmt_lno,
 				   node_entry->backup_node);
 			rc = -1;
@@ -2964,7 +2946,7 @@ slonik_failed_node(SlonikStmt_failed_node * stmt)
 
 		if (db_begin_xact((SlonikStmt *) stmt, adminfo1, false) < 0)
 		{
-			printf("%s:%d can not connect to node %d\n",
+			printf("%s:%d: can not connect to node %d\n",
 				   stmt->hdr.stmt_filename, stmt->hdr.stmt_lno,
 				   node_entry->backup_node);
 			rc = -1;
@@ -3062,7 +3044,7 @@ slonik_failed_node(SlonikStmt_failed_node * stmt)
 													 nodeinfo[i].no_id);
 			if (nodeinfo[i].adminfo == NULL)
 			{
-				printf("%s:%d error no conninfo for candidate for %d\n",
+				printf("%s:%d: error no conninfo for candidate for %d\n",
 					   stmt->hdr.stmt_filename, stmt->hdr.stmt_lno
 					   ,nodeinfo[i].no_id);
 				PQclear(res1);
@@ -3115,7 +3097,7 @@ slonik_failed_node(SlonikStmt_failed_node * stmt)
 		PQclear(res2);
 		if (!has_candidate && node_entry->num_sets > 0 )
 		{
-			printf("%s:%d error no failover candidates for %d\n",
+			printf("%s:%d: error no failover candidates for %d\n",
 				   stmt->hdr.stmt_filename, stmt->hdr.stmt_lno
 				   ,node_entry->no_id);
 			rc = -1;
@@ -3130,7 +3112,7 @@ slonik_failed_node(SlonikStmt_failed_node * stmt)
 
 		for (i = 0; i < node_entry->num_nodes; i++)
 		{
-			printf("executing preFailover(%d,%d) on %d\n",
+			slonik_printf("NOTICE: executing preFailover(%d,%d) on %d\n",
 				   node_entry->no_id,
 				   nodeinfo[i].failover_candidate,
 				   nodeinfo[i].no_id);
@@ -3216,7 +3198,7 @@ slonik_failed_node(SlonikStmt_failed_node * stmt)
 			lock_set.set_id = set_list[cur_origin_idx][i];
 			if (slonik_lock_set(&lock_set) < 0)
 			{
-				printf("%s:%d error locking set %d on %d for MOVE SET\n",
+				printf("%s:%d: error locking set %d on %d for MOVE SET\n",
 					   stmt->hdr.stmt_filename, stmt->hdr.stmt_lno,
 					   lock_set.set_id, lock_set.set_origin);
 				rc=-1;
@@ -3228,7 +3210,7 @@ slonik_failed_node(SlonikStmt_failed_node * stmt)
 			move_set.set_id = set_list[cur_origin_idx][i];
 			if (slonik_move_set(&move_set) < 0)
 			{
-				printf("%s:%d error moving set %d on %d\n",
+				printf("%s:%d: error moving set %d on %d\n",
 					   stmt->hdr.stmt_filename, stmt->hdr.stmt_lno,
 					   lock_set.set_id, lock_set.set_origin);
 				rc=-1;
@@ -3259,7 +3241,7 @@ slonik_failed_node(SlonikStmt_failed_node * stmt)
 				/**
 				 * pretty serious? how do we recover?
 				 */
-				printf("%s:%d error waiting for event\n",
+				printf("%s:%d: error waiting for event\n",
 					   stmt->hdr.stmt_filename, stmt->hdr.stmt_lno);
 				rc=wait_rc;
 			}
@@ -3445,7 +3427,7 @@ fail_node_promote(SlonikStmt_failed_node * stmt,
 				 stmt->hdr.script->clustername,
 				 node_entry->no_id, nodeinfo[max_node_idx].no_id
 				 ,ev_seqno_c,dstring_data(failed_node_list));
-	printf("NOTICE: executing \"_%s\".failedNode2 on node %d\n",
+	slonik_printf("NOTICE: executing \"_%s\".failedNode2 on node %d\n",
 		   stmt->hdr.script->clustername,
 		   nodeinfo[max_node_idx].no_id);
 	node_entry->temp_backup_node = nodeinfo[max_node_idx].no_id;
@@ -3495,7 +3477,7 @@ fail_node_promote(SlonikStmt_failed_node * stmt,
 		/**
 		 * pretty serious? how do we recover?
 		 */
-		printf("%s:%d error waiting for event\n",
+		printf("%s:%d: error waiting for event\n",
 			   stmt->hdr.stmt_filename, stmt->hdr.stmt_lno);
 	}
 
@@ -3510,7 +3492,7 @@ fail_node_promote(SlonikStmt_failed_node * stmt,
 				 stmt->hdr.script->clustername,
 				 node_entry->no_id, nodeinfo[max_node_idx].no_id
 				 ,ev_seqno_c);
-	printf("NOTICE: executing \"_%s\".failedNode3 on node %d\n",
+	slonik_printf("NOTICE: executing \"_%s\".failedNode3 on node %d\n",
 		   stmt->hdr.script->clustername,
 		   nodeinfo[max_node_idx].no_id);
 
@@ -3562,13 +3544,13 @@ slonik_uninstall_node(SlonikStmt_uninstall_node * stmt)
 				 stmt->hdr.script->clustername);
 	if (db_exec_command((SlonikStmt *) stmt, adminfo1, &query) < 0)
 	{
-		printf("Failed to exec uninstallNode() for node %d\n", stmt->no_id);
+		slonik_printf("Failed to exec uninstallNode() for node %d\n", stmt->no_id);
 		dstring_free(&query);
 		return -1;
 	}
 	if (db_commit_xact((SlonikStmt *) stmt, adminfo1) < 0)
 	{
-		printf("Failed to commit uninstallNode() for node %d\n", stmt->no_id);
+		slonik_printf("Failed to commit uninstallNode() for node %d\n", stmt->no_id);
 		dstring_free(&query);
 		return -1;
 	}
@@ -3578,13 +3560,13 @@ slonik_uninstall_node(SlonikStmt_uninstall_node * stmt)
 				 stmt->hdr.script->clustername);
 	if (db_exec_command((SlonikStmt *) stmt, adminfo1, &query) < 0)
 	{
-		printf("Failed to drop schema for node %d\n", stmt->no_id);
+		slonik_printf("Failed to drop schema for node %d\n", stmt->no_id);
 		dstring_free(&query);
 		return -1;
 	}
 	if (db_commit_xact((SlonikStmt *) stmt, adminfo1) < 0)
 	{
-		printf("Failed to commit drop schema for node %d\n", stmt->no_id);
+		slonik_printf("Failed to commit drop schema for node %d\n", stmt->no_id);
 		dstring_free(&query);
 		return -1;
 	}
@@ -3998,7 +3980,7 @@ slonik_merge_set(SlonikStmt_merge_set * stmt)
 			}
 			else
 			{
-				printf("%s:%d Error: a subscription is in progress. "
+				printf("%s:%d: Error: a subscription is in progress. "
 					   "slonik can not wait for it to finish inside of a "
 				   "try block", stmt->hdr.stmt_filename, stmt->hdr.stmt_lno);
 				return -1;
@@ -4019,7 +4001,7 @@ slonik_merge_set(SlonikStmt_merge_set * stmt)
 		if (result != NULL && (*result == 't' ||
 							   *result == 'T'))
 		{
-			printf("%s:%d subscription in progress before mergeSet. waiting\n",
+			printf("%s:%d: subscription in progress before mergeSet. waiting\n",
 				   stmt->hdr.stmt_filename, stmt->hdr.stmt_lno);
 			fflush(stdout);
 			db_rollback_xact((SlonikStmt *) stmt, adminfo1);
@@ -4641,7 +4623,7 @@ slonik_subscribe_set(SlonikStmt_subscribe_set * stmt)
 	res1 = db_exec_select((SlonikStmt *) stmt, adminfo1, &query);
 	if (res1 == NULL || PQntuples(res1) <= 0)
 	{
-		printf("%s:%d error: can not determine set origin for set %d\n",
+		printf("%s:%d: error: can not determine set origin for set %d\n",
 			   stmt->hdr.stmt_filename, stmt->hdr.stmt_lno, stmt->sub_setid);
 		if (res1 != NULL)
 			PQclear(res1);
@@ -4684,7 +4666,7 @@ slonik_subscribe_set(SlonikStmt_subscribe_set * stmt)
 		adminfo2 = get_active_adminfo((SlonikStmt *) stmt, stmt->sub_receiver);
 		if (adminfo2 == NULL)
 		{
-			printf("can not find conninfo for receiver node %d\n",
+			slonik_printf("can not find conninfo for receiver node %d\n",
 				   stmt->sub_receiver);
 			return -1;
 		}
@@ -4698,7 +4680,7 @@ slonik_subscribe_set(SlonikStmt_subscribe_set * stmt)
 					 stmt->sub_receiver);
 		if (db_exec_command((SlonikStmt *) stmt, adminfo2, &query) < 0)
 		{
-			printf("error reshaping subscriber\n");
+			slonik_printf("error reshaping subscriber\n");
 		}
 
 		dstring_free(&query);
@@ -4999,7 +4981,8 @@ slonik_ddl_script(SlonikStmt_ddl_script * stmt)
 	/* OOPS!  Something went wrong !!! */
 	if ((num_statements < 0) || (num_statements >= MAXSTATEMENTS))
 	{
-		printf("DDL - number of statements invalid - %d not between 0 and %d\n", num_statements, MAXSTATEMENTS);
+		slonik_printf("DDL - number of statements invalid - "
+				"%d not between 0 and %d\n", num_statements, MAXSTATEMENTS);
 		dstring_free(&script_rewritten);
 		return -1;
 	}
@@ -5018,7 +5001,8 @@ slonik_ddl_script(SlonikStmt_ddl_script * stmt)
 		dest = (char *) malloc(endpos - startpos + 1);
 		if (dest == 0)
 		{
-			printf("DDL Failure - could not allocate %d bytes of memory\n", endpos - startpos + 1);
+			slonik_printf("DDL Failure - could not allocate "
+					"%d bytes of memory\n", endpos - startpos + 1);
 			return -1;
 		}
 		strncpy(dest, dstring_data(&script_rewritten) + startpos, endpos - startpos);
@@ -5031,7 +5015,7 @@ slonik_ddl_script(SlonikStmt_ddl_script * stmt)
 		res1 = PQexecParams(adminfo1->dbconn, dstring_data(&equery), 1, NULL, params, NULL, NULL, 0);
 		if (PQresultStatus(res1) != PGRES_TUPLES_OK)
 		{
-			fprintf(stderr, "%s [%s] - %s",
+			slonik_printf("%s [%s] - %s",
 					PQresStatus(PQresultStatus(res1)),
 					dstring_data(&query), PQresultErrorMessage(res1));
 			PQclear(res1);
@@ -5067,7 +5051,7 @@ slonik_ddl_script(SlonikStmt_ddl_script * stmt)
 	res1 = PQexec(adminfo1->dbconn, dstring_data(&query));
 	if (PQresultStatus(res1) != PGRES_TUPLES_OK)
 	{
-		fprintf(stderr, "%s [%s] - %s",
+		slonik_printf("%s [%s] - %s",
 				PQresStatus(PQresultStatus(res1)),
 				dstring_data(&query), PQresultErrorMessage(res1));
 		PQclear(res1);
@@ -5916,7 +5900,7 @@ slonik_submitEvent(SlonikStmt * stmt,
 			}
 			else
 			{
-				printf("%s:%d Error: the event origin can not be changed "
+				printf("%s:%d: Error: the event origin can not be changed "
 					   "inside of a try block",
 					   stmt->stmt_filename, stmt->stmt_lno);
 				return -1;
@@ -6012,7 +5996,7 @@ slonik_get_last_event_id(SlonikStmt * stmt,
 			result = db_exec_select(stmt, activeAdmInfo, &query);
 			if (result == NULL || PQntuples(result) != 1)
 			{
-				printf("error: unable to query event history on node %d\n",
+				slonik_printf("Error: unable to query event history on node %d\n",
 					   curAdmInfo->no_id);
 				if (result != NULL)
 					PQclear(result);
@@ -6097,7 +6081,7 @@ slonik_wait_config_caughtup(SlonikAdmInfo * adminfo1,
 		}
 		else
 		{
-			printf("%s:%d Error: WAIT operation forbidden inside a try block\n",
+			printf("%s:%d: Error: WAIT operation forbidden inside a try block\n",
 				   stmt->stmt_filename, stmt->stmt_lno);
 			return -1;
 		}
@@ -6415,7 +6399,7 @@ slonik_resubscribe_node(SlonikStmt_resubscribe_node * stmt)
 	adminfo2 = get_active_adminfo((SlonikStmt *) stmt, stmt->no_receiver);
 	if (adminfo2 == NULL)
 	{
-		printf("can not find conninfo for receiver node %d\n",
+		slonik_printf("can not find conninfo for receiver node %d\n",
 			   stmt->no_receiver);
 		return -1;
 	}
@@ -6429,7 +6413,7 @@ slonik_resubscribe_node(SlonikStmt_resubscribe_node * stmt)
 				 stmt->no_receiver);
 	if (db_exec_command((SlonikStmt *) stmt, adminfo2, &query) < 0)
 	{
-		printf("error reshaping subscriber\n");
+		slonik_printf("error reshaping subscriber\n");
 	}
 
 	dstring_free(&query);

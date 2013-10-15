@@ -1561,7 +1561,7 @@ stmt_wait_inside_try	: lno K_WAIT K_FOR K_EVENT option_list
 						new->hdr.stmt_filename	= current_file;
 						new->hdr.stmt_lno		= $1;
 
-						fprintf(stderr, "%s:%d: wait for event "
+						fprintf(stdout, "%s:%d: wait for event "
 								"not allowed inside try block\n",
 								current_file, $1);
 						parser_errors++;
@@ -2039,7 +2039,7 @@ assign_options(statement_option *so, option_list *ol)
 
 		if (s_opt->opt_code < 0)
 		{
-			fprintf(stderr, "%s:%d: option %s not allowed here\n",
+			fprintf(stdout, "%s:%d: option %s not allowed here\n",
 					current_file, u_opt->lineno,
 					option_str(u_opt->opt_code));
 			errors++;
@@ -2048,7 +2048,7 @@ assign_options(statement_option *so, option_list *ol)
 
 		if (s_opt->lineno >= 0)
 		{
-			fprintf(stderr, "%s:%d: option %s already defined on line %d\n",
+			fprintf(stdout, "%s:%d: option %s already defined on line %d\n",
 					current_file, u_opt->lineno,
 					option_str(u_opt->opt_code), s_opt->lineno);
 			errors++;
@@ -2067,7 +2067,7 @@ assign_options(statement_option *so, option_list *ol)
 void
 yyerror(const char *msg)
 {
-	fprintf(stderr, "%s:%d: ERROR: %s at or near %s\n", current_file,
+	fprintf(stdout, "%s:%d: ERROR: %s at or near %s\n", current_file,
 				yylineno, msg, yytext);
 	parser_errors++;
 }

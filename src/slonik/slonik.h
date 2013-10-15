@@ -561,6 +561,7 @@ do { \
 extern int	parser_errors;
 extern char *current_file;
 
+extern void slonik_printf(char *fmt, ...);
 extern int	slonik_restart_node(SlonikStmt_restart_node * stmt);
 extern int	slonik_init_cluster(SlonikStmt_init_cluster * stmt);
 extern int	slonik_store_node(SlonikStmt_store_node * stmt);

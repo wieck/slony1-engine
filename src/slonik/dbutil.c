@@ -67,12 +67,12 @@ db_notice_recv(void *arg, const PGresult *res)
 	 */
 	if (db_notice_stmt == NULL)
 	{
-		fprintf(stderr, "<unknown>:<unknown>: %s",
+		printf("<unknown>:<unknown>: %s",
 				PQresultErrorMessage(res));
 	}
 	else
 	{
-		fprintf(stderr, "%s:%d: %s",
+		printf("%s:%d: %s",
 				db_notice_stmt->stmt_filename,
 				db_notice_stmt->stmt_lno,
 				PQresultErrorMessage(res));
@@ -100,11 +100,11 @@ db_notice_recv(void *arg, const char *msg)
 	 */
 	if (db_notice_stmt == NULL)
 	{
-		fprintf(stderr, "<unknown>:<unknown>: %s", msg);
+		printf("<unknown>:<unknown>: %s", msg);
 	}
 	else
 	{
-		fprintf(stderr, "%s:%d: %s",
+		printf("%s:%d: %s",
 				db_notice_stmt->stmt_filename,
 				db_notice_stmt->stmt_lno, msg);
 	}
@@ -254,7 +254,7 @@ db_exec_command(SlonikStmt * stmt, SlonikAdmInfo * adminfo, SlonDString * query)
 		PQresultStatus(res) != PGRES_TUPLES_OK &&
 		PQresultStatus(res) != PGRES_EMPTY_QUERY)
 	{
-		fprintf(stderr, "%s:%d: %s %s - %s",
+		fprintf(stdout, "%s:%d: %s %s - %s",
 				stmt->stmt_filename, stmt->stmt_lno,
 				PQresStatus(PQresultStatus(res)),
 				dstring_data(query), PQresultErrorMessage(res));
@@ -289,7 +289,7 @@ db_exec_evcommand(SlonikStmt * stmt, SlonikAdmInfo * adminfo, SlonDString * quer
 	res = PQexec(adminfo->dbconn, dstring_data(query));
 	if (PQresultStatus(res) != PGRES_TUPLES_OK)
 	{
-		fprintf(stderr, "%s:%d: %s %s - %s",
+		fprintf(stdout, "%s:%d: %s %s - %s",
 				stmt->stmt_filename, stmt->stmt_lno,
 				PQresStatus(PQresultStatus(res)),
 				dstring_data(query), PQresultErrorMessage(res));
@@ -298,7 +298,7 @@ db_exec_evcommand(SlonikStmt * stmt, SlonikAdmInfo * adminfo, SlonDString * quer
 	}
 	if (PQntuples(res) != 1)
 	{
-		fprintf(stderr, "%s:%d: %s - did not return 1 row",
+		fprintf(stdout, "%s:%d: %s - did not return 1 row",
 				stmt->stmt_filename, stmt->stmt_lno,
 				dstring_data(query));
 		PQclear(res);
@@ -338,7 +338,7 @@ db_exec_evcommand_p(SlonikStmt * stmt, SlonikAdmInfo * adminfo,
 					   paramFormats, resultFormat);
 	if (PQresultStatus(res) != PGRES_TUPLES_OK)
 	{
-		fprintf(stderr, "%s:%d: %s %s - %s",
+		fprintf(stdout, "%s:%d: %s %s - %s",
 				stmt->stmt_filename, stmt->stmt_lno,
 				PQresStatus(PQresultStatus(res)),
 				dstring_data(query), PQresultErrorMessage(res));
@@ -347,7 +347,7 @@ db_exec_evcommand_p(SlonikStmt * stmt, SlonikAdmInfo * adminfo,
 	}
 	if (PQntuples(res) != 1)
 	{
-		fprintf(stderr, "%s:%d: %s - did not return 1 row",
+		fprintf(stdout, "%s:%d: %s - did not return 1 row",
 				stmt->stmt_filename, stmt->stmt_lno,
 				dstring_data(query));
 		PQclear(res);
@@ -380,7 +380,7 @@ db_exec_select(SlonikStmt * stmt, SlonikAdmInfo * adminfo, SlonDString * query)
 	res = PQexec(adminfo->dbconn, dstring_data(query));
 	if (PQresultStatus(res) != PGRES_TUPLES_OK)
 	{
-		fprintf(stderr, "%s:%d: %s %s - %s",
+		fprintf(stdout, "%s:%d: %s %s - %s",
 				stmt->stmt_filename, stmt->stmt_lno,
 				PQresStatus(PQresultStatus(res)),
 				dstring_data(query), PQresultErrorMessage(res));
@@ -456,7 +456,7 @@ db_get_version(SlonikStmt * stmt, SlonikAdmInfo * adminfo)
 	if (sscanf(PQgetvalue(res, 0, 0), "PostgreSQL %d.%d.%d", &major, &minor, &patch) < 2 &&
 		sscanf(PQgetvalue(res, 0, 0), "EnterpriseDB %d.%d.%d", &major, &minor, &patch) < 2)
 	{
-		fprintf(stderr, "%s:%d: failed to parse %s for DB version\n",
+		fprintf(stdout, "%s:%d: failed to parse %s for DB version\n",
 				stmt->stmt_filename, stmt->stmt_lno,
 				PQgetvalue(res, 0, 0));
 		PQclear(res);

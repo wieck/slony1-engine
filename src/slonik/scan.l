@@ -167,7 +167,7 @@ yes				{ return K_YES;				}
 				instring_buffer=malloc(256);
 				if( instring_buffer == NULL)
 				{
-						fprintf(stderr,"insufficient memory\n");
+						fprintf(stdout,"insufficient memory\n");
 						exit(1);
 
 
@@ -229,7 +229,7 @@ yes				{ return K_YES;				}
 
                     if(( yyin = fopen( fileName, "r" )) == NULL )
                     {
-                        fprintf( stderr,  "Include file (%s) not found\n", fileName );
+                        fprintf( stdout,  "Include file (%s) not found\n", fileName );
                         exit( 1 );
                     }
                  
